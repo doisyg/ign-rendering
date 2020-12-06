@@ -18,9 +18,68 @@
 #include <ignition/math/Vector2.hh>
 #include <ignition/math/Vector3.hh>
 
+#include <ignition/common/Console.hh>
+#include <ignition/math/Helpers.hh>
+
 #include "ignition/rendering/ogre2/Ogre2Camera.hh"
 #include "ignition/rendering/ogre2/Ogre2GpuRays.hh"
 #include "ignition/rendering/ogre2/Ogre2RenderEngine.hh"
+#include "ignition/rendering/RenderTypes.hh"
+#include "ignition/rendering/ogre2/Ogre2Conversions.hh"
+#include "ignition/rendering/ogre2/Ogre2Includes.hh"
+#include "ignition/rendering/ogre2/Ogre2RenderTarget.hh"
+#include "ignition/rendering/ogre2/Ogre2RenderTypes.hh"
+#include "ignition/rendering/ogre2/Ogre2Scene.hh"
+#include "ignition/rendering/ogre2/Ogre2Sensor.hh"
+#include "ignition/rendering/ogre2/Ogre2Visual.hh"
+
+namespace ignition
+{
+namespace rendering
+{
+inline namespace IGNITION_RENDERING_VERSION_NAMESPACE {
+//
+/// \brief Helper class for switching the ogre item's material to heat source
+/// material when a thermal camera is being rendered.
+class Ogre2LaserRetroMaterialSwitcher : public Ogre::RenderTargetListener
+{
+  /// \brief constructor
+  /// \param[in] _scene the scene manager responsible for rendering
+  public: explicit Ogre2LaserRetroMaterialSwitcher(Ogre2ScenePtr _scene);
+
+  /// \brief destructor
+  public: ~Ogre2LaserRetroMaterialSwitcher() = default;
+
+  /// \brief Callback when a render target is about to be rendered
+  /// \param[in] _evt Ogre render target event containing information about
+  /// the source render target.
+  private: virtual void preRenderTargetUpdate(
+      const Ogre::RenderTargetEvent &_evt) override;
+
+  /// \brief Callback when a render target is finisned being rendered
+  /// \param[in] _evt Ogre render target event containing information about
+  /// the source render target.
+  private: virtual void postRenderTargetUpdate(
+      const Ogre::RenderTargetEvent &_evt) override;
+
+  /// \brief Scene manager
+  private: Ogre2ScenePtr scene = nullptr;
+
+  /// \brief Pointer to the laser retro source material
+  private: Ogre::MaterialPtr laserRetroSourceMaterial;
+
+  /// \brief Custom parameter index of temperature data in an ogre subitem.
+  /// This has to match the custom index specifed in ThermalHeatSource material
+  /// script in media/materials/scripts/thermal_camera.material
+  private: const unsigned int customParamIdx = 10u;
+
+  /// \brief A map of ogre sub item pointer to their original hlms material
+  private: std::map<Ogre::SubItem *, Ogre::HlmsDatablock *> datablockMap;
+};
+}
+}
+}
+
 
 /// \internal
 /// \brief Private data for the Ogre2GpuRays class
@@ -99,10 +158,143 @@ class ignition::rendering::Ogre2GpuRaysPrivate
 
   /// \brief Dummy render texture for the gpu rays
   public: RenderTexturePtr renderTexture;
+
+  /// \brief Pointer to material switcher
+  public: std::unique_ptr<Ogre2LaserRetroMaterialSwitcher>
+      laserRetroMaterialSwitcher = nullptr;
 };
 
 using namespace ignition;
 using namespace rendering;
+
+
+//////////////////////////////////////////////////
+Ogre2LaserRetroMaterialSwitcher::Ogre2LaserRetroMaterialSwitcher(
+    Ogre2ScenePtr _scene)
+{
+  this->scene = _scene;
+  // plain opaque material
+  Ogre::ResourcePtr res =
+    Ogre::MaterialManager::getSingleton().load("LaserRetroSource",
+        Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME);
+
+  this->laserRetroSourceMaterial = res.staticCast<Ogre::Material>();
+  this->laserRetroSourceMaterial->load();
+}
+
+//////////////////////////////////////////////////
+void Ogre2LaserRetroMaterialSwitcher::preRenderTargetUpdate(
+    const Ogre::RenderTargetEvent & /*_evt*/)
+{
+  //ignmsg << "preRenderTargetUpdate" << std::endl;
+
+  // swap item to use v1 shader material
+  // Note: keep an eye out for performance impact on switching materials
+  // on the fly. We are not doing this often so should be ok.
+  this->datablockMap.clear();
+  auto itor = this->scene->OgreSceneManager()->getMovableObjectIterator(
+      Ogre::ItemFactory::FACTORY_TYPE_NAME);
+  while (itor.hasMoreElements())
+  {
+    Ogre::MovableObject *object = itor.peekNext();
+    Ogre::Item *item = static_cast<Ogre::Item *>(object);
+
+    std::string tempKey = "laser_retro";
+    // get visual
+    Ogre::Any userAny = item->getUserObjectBindings().getUserAny();
+    if (!userAny.isEmpty() && userAny.getType() == typeid(unsigned int))
+    {
+      VisualPtr result;
+      try
+      {
+        result = this->scene->VisualById(Ogre::any_cast<unsigned int>(userAny));
+      }
+      catch(Ogre::Exception &e)
+      {
+        ignerr << "Ogre Error:" << e.getFullDescription() << "\n";
+      }
+      Ogre2VisualPtr ogreVisual =
+          std::dynamic_pointer_cast<Ogre2Visual>(result);
+
+      // get temperature
+      Variant tempAny = ogreVisual->UserData(tempKey);
+      //ignmsg << "got temp any: " << std::endl;
+
+
+      if (tempAny.index() != 0)
+      {
+        ignmsg << "tempAny.index() != 0" << std::endl;
+        int retro_value = std::get<int>(tempAny);
+        if (retro_value>0){
+          ignmsg << "retro_value: " << retro_value << std::endl;
+        }
+      }
+////        float temp = -1.0;
+////        try
+////        {
+////          temp = std::get<float>(tempAny);
+////        }
+////        catch(...)
+////        {
+////          try
+////          {
+////            temp = std::get<double>(tempAny);
+////          }
+////          catch(...)
+////          {
+////            try
+////            {
+////              temp = std::get<int>(tempAny);
+////            }
+////            catch(std::bad_variant_access &e)
+////            {
+////              ignerr << "Error casting user data: " << e.what() << "\n";
+////              temp = -1.0;
+////            }
+////          }
+////        }
+
+////        // only accept positive temperature (in kelvin)
+////        if (temp >= 0.0)
+////        {
+////          // set visibility flag so thermal camera can see it
+////          item->addVisibilityFlags(0x10000000);
+////          for (unsigned int i = 0; i < item->getNumSubItems(); ++i)
+////          {
+////            Ogre::SubItem *subItem = item->getSubItem(i);
+////            if (!subItem->hasCustomParameter(this->customParamIdx))
+////            {
+////              // normalize temperature value
+////              float color = temp * 100.0 /
+////                  static_cast<float>(std::numeric_limits<uint16_t>::max());
+////              subItem->setCustomParameter(this->customParamIdx,
+////                  Ogre::Vector4(color, color, color, 1.0));
+////            }
+////            Ogre::HlmsDatablock *datablock = subItem->getDatablock();
+////            this->datablockMap[subItem] = datablock;
+
+////            subItem->setMaterial(this->laserRetroSourceMaterial);
+////          }
+////        }
+////        }
+      }
+      itor.moveNext();
+    }
+  }
+
+//////////////////////////////////////////////////
+void Ogre2LaserRetroMaterialSwitcher::postRenderTargetUpdate(
+    const Ogre::RenderTargetEvent & /*_evt*/)
+{
+  //ignmsg << "postRenderTargetUpdate" << std::endl;
+//  // restore item to use hlms material
+//  for (auto it : this->datablockMap)
+//  {
+//    Ogre::SubItem *subItem = it.first;
+//    subItem->setDatablock(it.second);
+//  }
+}
+
 
 //////////////////////////////////////////////////
 Ogre2GpuRays::Ogre2GpuRays()
@@ -589,6 +781,36 @@ void Ogre2GpuRays::Setup1stPass()
     this->dataPtr->ogreCompositorWorkspace1st[i] =
         ogreCompMgr->addWorkspace(this->scene->OgreSceneManager(),
         rt, this->dataPtr->cubeCam[i], wsDefName, false);
+
+    if (i==0){
+    // add laser retro material swticher to render target listener
+    // so we can switch to use laser retro material when the camera is being udpated
+    ignmsg << "this->dataPtr->ogreCompositorWorkspace2nd->getNodeSequence().size() "<<
+           this->dataPtr->ogreCompositorWorkspace1st[i]->getNodeSequence().size() << std::endl;
+
+    Ogre::CompositorNode *node =
+        this->dataPtr->ogreCompositorWorkspace1st[i]->getNodeSequence()[0];
+    auto channels = node->getLocalTextures();
+
+    ignmsg << "reset switcher" << std::endl;
+    ignmsg << "channels size:" << channels.size() << std::endl;
+
+    for (auto c : channels)
+    {
+      ignmsg << "for (auto c" << std::endl;
+      ignmsg << "c.textures[0]->getSrcFormat(): " << c.textures[0]->getSrcFormat() << std::endl;
+      if (c.textures[0]->getSrcFormat() == Ogre::PF_D32_FLOAT)
+      {
+        ignmsg << "if textures PF_D32_FLOAT" << std::endl;
+        this->dataPtr->laserRetroMaterialSwitcher.reset(
+            new Ogre2LaserRetroMaterialSwitcher(this->scene));
+        c.target->addListener(this->dataPtr->laserRetroMaterialSwitcher.get());
+        break;
+      }
+    }
+  }
+
+
   }
 }
 

@@ -23,10 +23,23 @@
 
 #include "ignition/rendering/RenderTypes.hh"
 #include "ignition/rendering/base/BaseGpuRays.hh"
+#include "ignition/rendering/ogre2/Export.hh"
+#include "ignition/rendering/ogre2/Ogre2Includes.hh"
 #include "ignition/rendering/ogre2/Ogre2RenderTarget.hh"
 #include "ignition/rendering/ogre2/Ogre2RenderTypes.hh"
 #include "ignition/rendering/ogre2/Ogre2Scene.hh"
 #include "ignition/rendering/ogre2/Ogre2Sensor.hh"
+
+#include "ignition/common/Event.hh"
+#include "ignition/common/Console.hh"
+
+namespace Ogre
+{
+  class Material;
+  class RenderTarget;
+  class Texture;
+  class Viewport;
+}
 
 namespace ignition
 {
@@ -138,6 +151,9 @@ namespace ignition
       /// \return Texture UV coordinates on the face indicated by _faceIndex
       private: math::Vector2d SampleCubemap(const math::Vector3d &_v,
           unsigned int &_faceIndex);
+
+      /// \brief Pointer to the ogre camera
+      protected: Ogre::Camera *ogreCamera = nullptr;
 
       /// \internal
       /// \brief Pointer to private data.
