@@ -225,7 +225,12 @@ void GpuRaysTest::RaysUnitBox(const std::string &_renderEngine)
   visualBox1->AddGeometry(scene->CreateBox());
   visualBox1->SetWorldPosition(box01Pose.Pos());
   visualBox1->SetWorldRotation(box01Pose.Rot());
+  float laser_retro = 310.0;
+  std::string userDataKey = "laser_retro";
+  visualBox1->SetUserData(userDataKey, laser_retro);
   root->AddChild(visualBox1);
+
+
 
   // box on the right of the first gpu rays caster
   ignition::math::Pose3d box02Pose(ignition::math::Vector3d(0, -5, 0.5),
@@ -234,6 +239,7 @@ void GpuRaysTest::RaysUnitBox(const std::string &_renderEngine)
   visualBox2->AddGeometry(scene->CreateBox());
   visualBox2->SetWorldPosition(box02Pose.Pos());
   visualBox2->SetWorldRotation(box02Pose.Rot());
+  //visualBox2->SetUserData("laser_retro", laser_retro);
   root->AddChild(visualBox2);
 
   // box on the left of the rays caster 1 but out of range
@@ -244,6 +250,7 @@ void GpuRaysTest::RaysUnitBox(const std::string &_renderEngine)
   visualBox3->AddGeometry(scene->CreateBox());
   visualBox3->SetWorldPosition(box03Pose.Pos());
   visualBox3->SetWorldRotation(box03Pose.Rot());
+  //visualBox3->SetUserData("laser_retro", laser_retro);
   root->AddChild(visualBox3);
 
   // Verify rays caster 1 range readings
@@ -265,6 +272,7 @@ void GpuRaysTest::RaysUnitBox(const std::string &_renderEngine)
   double expectedRangeAtMidPointBox2 = abs(box02Pose.Pos().Y()) - unitBoxSize/2;
 
   // rays caster 1 should see box01 and box02
+  ignerr << "mid range: " << scan[mid] << " mid retro: " << scan[mid+1] << std::endl;
   EXPECT_NEAR(scan[mid], expectedRangeAtMidPointBox1, LASER_TOL);
   EXPECT_NEAR(scan[0], expectedRangeAtMidPointBox2, LASER_TOL);
   EXPECT_DOUBLE_EQ(scan[last], ignition::math::INF_D);
@@ -383,6 +391,8 @@ void GpuRaysTest::LaserVertical(const std::string &_renderEngine)
   visualBox1->AddGeometry(scene->CreateBox());
   visualBox1->SetWorldPosition(box01Pose.Pos());
   visualBox1->SetWorldRotation(box01Pose.Rot());
+//  float laser_retro = 310.0;
+//  visualBox1->SetUserData("laser_retro", laser_retro);
   root->AddChild(visualBox1);
 
   unsigned int channels = gpuRays->Channels();

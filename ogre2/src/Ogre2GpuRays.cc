@@ -186,7 +186,7 @@ Ogre2LaserRetroMaterialSwitcher::Ogre2LaserRetroMaterialSwitcher(
 void Ogre2LaserRetroMaterialSwitcher::preRenderTargetUpdate(
     const Ogre::RenderTargetEvent & /*_evt*/)
 {
-  //ignmsg << "preRenderTargetUpdate" << std::endl;
+  ignmsg << "preRenderTargetUpdate" << std::endl;
 
   // swap item to use v1 shader material
   // Note: keep an eye out for performance impact on switching materials
@@ -200,6 +200,7 @@ void Ogre2LaserRetroMaterialSwitcher::preRenderTargetUpdate(
     Ogre::Item *item = static_cast<Ogre::Item *>(object);
 
     std::string tempKey = "laser_retro";
+    std::string tempKey2 = "temperature";
     // get visual
     Ogre::Any userAny = item->getUserObjectBindings().getUserAny();
     if (!userAny.isEmpty() && userAny.getType() == typeid(unsigned int))
@@ -218,15 +219,13 @@ void Ogre2LaserRetroMaterialSwitcher::preRenderTargetUpdate(
 
       // get temperature
       Variant tempAny = ogreVisual->UserData(tempKey);
-      //ignmsg << "got temp any: " << std::endl;
-
 
       if (tempAny.index() != 0)
       {
-        ignmsg << "tempAny.index() != 0" << std::endl;
-        int retro_value = std::get<int>(tempAny);
+        ignerr << "Visual Name: " << ogreVisual->Name() << std::endl;
+        int retro_value = std::get<float>(tempAny);
         if (retro_value>0){
-          ignmsg << "retro_value: " << retro_value << std::endl;
+          ignerr << "retro_value: " << retro_value << std::endl;
         }
       }
 ////        float temp = -1.0;
@@ -286,7 +285,7 @@ void Ogre2LaserRetroMaterialSwitcher::preRenderTargetUpdate(
 void Ogre2LaserRetroMaterialSwitcher::postRenderTargetUpdate(
     const Ogre::RenderTargetEvent & /*_evt*/)
 {
-  //ignmsg << "postRenderTargetUpdate" << std::endl;
+  ignmsg << "postRenderTargetUpdate" << std::endl;
 //  // restore item to use hlms material
 //  for (auto it : this->datablockMap)
 //  {

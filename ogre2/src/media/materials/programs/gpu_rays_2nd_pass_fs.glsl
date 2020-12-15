@@ -86,7 +86,7 @@ void main()
     d = getRange(uv, tex5);
 
   // todo(anyone) set retro values
-  float retro = 1.0;
+  float retro = 0.0;
 
   fragColor = vec4(d, retro, 0, 1.0);
   return;
