@@ -272,7 +272,7 @@ void GpuRaysTest::RaysUnitBox(const std::string &_renderEngine)
   double expectedRangeAtMidPointBox2 = abs(box02Pose.Pos().Y()) - unitBoxSize/2;
 
   // rays caster 1 should see box01 and box02
-  ignerr << "mid range: " << scan[mid] << " mid retro: " << scan[mid+1] << std::endl;
+  ignerr << "mid range: " << scan[mid] << " umid retro: " << scan[mid+1] << std::endl;
   EXPECT_NEAR(scan[mid], expectedRangeAtMidPointBox1, LASER_TOL);
   EXPECT_NEAR(scan[0], expectedRangeAtMidPointBox2, LASER_TOL);
   EXPECT_DOUBLE_EQ(scan[last], ignition::math::INF_D);

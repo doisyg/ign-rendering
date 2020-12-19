@@ -71,7 +71,7 @@ class Ogre2LaserRetroMaterialSwitcher : public Ogre::RenderTargetListener
   /// \brief Custom parameter index of temperature data in an ogre subitem.
   /// This has to match the custom index specifed in ThermalHeatSource material
   /// script in media/materials/scripts/thermal_camera.material
-  private: const unsigned int customParamIdx = 10u;
+  private: const unsigned int customParamIdx = 11u;
 
   /// \brief A map of ogre sub item pointer to their original hlms material
   private: std::map<Ogre::SubItem *, Ogre::HlmsDatablock *> datablockMap;
@@ -220,62 +220,53 @@ void Ogre2LaserRetroMaterialSwitcher::preRenderTargetUpdate(
       // get temperature
       Variant tempAny = ogreVisual->UserData(tempKey);
 
-      if (tempAny.index() != 0)
-      {
-        ignerr << "Visual Name: " << ogreVisual->Name() << std::endl;
-        int retro_value = std::get<float>(tempAny);
-        if (retro_value>0){
-          ignerr << "retro_value: " << retro_value << std::endl;
+        float retro_value = -1.0;
+        try
+        {
+          retro_value = std::get<float>(tempAny);
         }
-      }
-////        float temp = -1.0;
-////        try
-////        {
-////          temp = std::get<float>(tempAny);
-////        }
-////        catch(...)
-////        {
-////          try
-////          {
-////            temp = std::get<double>(tempAny);
-////          }
-////          catch(...)
-////          {
-////            try
-////            {
-////              temp = std::get<int>(tempAny);
-////            }
-////            catch(std::bad_variant_access &e)
-////            {
-////              ignerr << "Error casting user data: " << e.what() << "\n";
-////              temp = -1.0;
-////            }
-////          }
-////        }
+        catch(...)
+        {
+          try
+          {
+            retro_value = std::get<double>(tempAny);
+          }
+          catch(...)
+          {
+            try
+            {
+              retro_value = std::get<int>(tempAny);
+            }
+            catch(std::bad_variant_access &e)
+            {
+              ignerr << "Error casting user data: " << e.what() << "\n";
+              retro_value = -1.0;
+            }
+          }
+        }
 
-////        // only accept positive temperature (in kelvin)
-////        if (temp >= 0.0)
-////        {
-////          // set visibility flag so thermal camera can see it
-////          item->addVisibilityFlags(0x10000000);
-////          for (unsigned int i = 0; i < item->getNumSubItems(); ++i)
-////          {
-////            Ogre::SubItem *subItem = item->getSubItem(i);
-////            if (!subItem->hasCustomParameter(this->customParamIdx))
-////            {
-////              // normalize temperature value
-////              float color = temp * 100.0 /
-////                  static_cast<float>(std::numeric_limits<uint16_t>::max());
-////              subItem->setCustomParameter(this->customParamIdx,
-////                  Ogre::Vector4(color, color, color, 1.0));
-////            }
-////            Ogre::HlmsDatablock *datablock = subItem->getDatablock();
-////            this->datablockMap[subItem] = datablock;
+        // only accept positive temperature (in kelvin)
+        if (retro_value >= 0.0)
+        {
+          ignerr << "Visual Name: " << ogreVisual->Name() << std::endl;
+          ignerr << "retro_value: " << retro_value << std::endl;
+          // set visibility flag so thermal camera can see it
+          item->addVisibilityFlags(0x10000000);
+          for (unsigned int i = 0; i < item->getNumSubItems(); ++i)
+          {
+            Ogre::SubItem *subItem = item->getSubItem(i);
+            if (!subItem->hasCustomParameter(this->customParamIdx))
+            {
+              subItem->setCustomParameter(this->customParamIdx,
+                  Ogre::Vector4(retro_value, retro_value, retro_value, 1.0));
+            }
+            Ogre::HlmsDatablock *datablock = subItem->getDatablock();
+            this->datablockMap[subItem] = datablock;
 
-////            subItem->setMaterial(this->laserRetroSourceMaterial);
-////          }
-////        }
-////        }
+            subItem->setMaterial(this->laserRetroSourceMaterial);
+          }
+        }
+        }
       }
       itor.moveNext();
     }
