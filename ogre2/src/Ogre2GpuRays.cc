@@ -258,14 +258,13 @@ void Ogre2LaserRetroMaterialSwitcher::preRenderTargetUpdate(
             if (!subItem->hasCustomParameter(this->customParamIdx))
             {
               subItem->setCustomParameter(this->customParamIdx,
-                  Ogre::Vector4(retro_value, retro_value, retro_value, 1.0));
+                  Ogre::Vector4(0.5, 0.6, 0.7, 1.0));
             }
             Ogre::HlmsDatablock *datablock = subItem->getDatablock();
             this->datablockMap[subItem] = datablock;
 
             subItem->setMaterial(this->laserRetroSourceMaterial);
           }
-        }
         }
       }
       itor.moveNext();
@@ -277,12 +276,12 @@ void Ogre2LaserRetroMaterialSwitcher::postRenderTargetUpdate(
     const Ogre::RenderTargetEvent & /*_evt*/)
 {
   ignmsg << "postRenderTargetUpdate" << std::endl;
-//  // restore item to use hlms material
-//  for (auto it : this->datablockMap)
-//  {
-//    Ogre::SubItem *subItem = it.first;
-//    subItem->setDatablock(it.second);
-//  }
+  // restore item to use hlms material
+  for (auto it : this->datablockMap)
+  {
+    Ogre::SubItem *subItem = it.first;
+    subItem->setDatablock(it.second);
+  }
 }
 
 
@@ -621,6 +620,7 @@ void Ogre2GpuRays::Setup1stPass()
   // {
   //   in 0 rt_input
   //   texture depthTexture target_width target_height PF_D32_FLOAT
+    //   texture colorTexture target_width target_height PF_R8G8B8
   //   target depthTexture
   //   {
   //     pass clear
@@ -631,6 +631,16 @@ void Ogre2GpuRays::Setup1stPass()
   //     {
   //     }
   //   }
+    //   target colorTexture
+    //   {
+    //     pass clear
+    //     {
+    //       colour_value 0.0 0.0 0.0 1.0
+    //     }
+    //     pass render_scene
+    //     {
+    //     }
+    //   }
   //   target rt_input
   //   {
   //     pass clear
@@ -641,6 +651,7 @@ void Ogre2GpuRays::Setup1stPass()
   //     {
   //       material GpuRaysScan1st // Use copy instead of original
   //       input 0 depthTexture
+    //       input 1 colorTexture
   //       quad_normals camera_far_corners_view_space
   //     }
   //   }
@@ -675,7 +686,26 @@ void Ogre2GpuRays::Setup1stPass()
     depthTexDef->depthBufferFormat = Ogre::PF_UNKNOWN;
     depthTexDef->fsaaExplicitResolve = false;
 
-    nodeDef->setNumTargetPass(2);
+    Ogre::TextureDefinitionBase::TextureDefinition *colorTexDef =
+        nodeDef->addTextureDefinition("colorTexture");
+    colorTexDef->textureType = Ogre::TEX_TYPE_2D;
+    colorTexDef->width = 0;
+    colorTexDef->height = 0;
+    colorTexDef->depth = 1;
+    colorTexDef->numMipmaps = 0;
+    colorTexDef->widthFactor = 1;
+    colorTexDef->heightFactor = 1;
+    colorTexDef->formatList = {Ogre::PF_R8G8B8};
+    colorTexDef->fsaa = 0;
+    colorTexDef->uav = false;
+    colorTexDef->automipmaps = false;
+    colorTexDef->hwGammaWrite = Ogre::TextureDefinitionBase::BoolFalse;
+    colorTexDef->depthBufferId = Ogre::DepthBuffer::POOL_DEFAULT;
+    colorTexDef->depthBufferFormat = Ogre::PF_D32_FLOAT;
+    colorTexDef->preferDepthTexture = true;
+    colorTexDef->fsaaExplicitResolve = false;
+
+    nodeDef->setNumTargetPass(3);
     // depthTexture target - renders depth
     Ogre::CompositorTargetDef *depthTargetDef =
         nodeDef->addTargetPass("depthTexture");
@@ -693,6 +723,24 @@ void Ogre2GpuRays::Setup1stPass()
       passScene->mVisibilityMask = IGN_VISIBILITY_ALL
           & ~(IGN_VISIBILITY_GUI | IGN_VISIBILITY_SELECTABLE);
     }
+
+    Ogre::CompositorTargetDef *colorTargetDef =
+        nodeDef->addTargetPass("colorTexture");
+    colorTargetDef->setNumPasses(2);
+    {
+      // clear pass
+      Ogre::CompositorPassClearDef *passClear =
+          static_cast<Ogre::CompositorPassClearDef *>(
+          colorTargetDef->addPass(Ogre::PASS_CLEAR));
+      passClear->mColourValue = Ogre::ColourValue(0, 0, 0);
+      // scene pass
+      Ogre::CompositorPassSceneDef *passScene =
+          static_cast<Ogre::CompositorPassSceneDef *>(
+          colorTargetDef->addPass(Ogre::PASS_SCENE));
+      // set thermal camera custom visibility mask when rendering heat sources
+      passScene->mVisibilityMask = 0x10000000;
+    }
+
     // rt_input target - converts depth to range
     Ogre::CompositorTargetDef *inputTargetDef =
         nodeDef->addTargetPass("rt_input");
@@ -709,6 +757,7 @@ void Ogre2GpuRays::Setup1stPass()
           inputTargetDef->addPass(Ogre::PASS_QUAD));
       passQuad->mMaterialName = this->dataPtr->matFirstPass->getName();
       passQuad->addQuadTextureSource(0, "depthTexture", 0);
+      passQuad->addQuadTextureSource(1, "colorTexture", 0);
       passQuad->mFrustumCorners =
           Ogre::CompositorPassQuadDef::VIEW_SPACE_CORNERS;
     }
@@ -762,7 +811,7 @@ void Ogre2GpuRays::Setup1stPass()
       Ogre::TextureManager::getSingleton().createManual(
       texName.str(), "General", Ogre::TEX_TYPE_2D,
       this->dataPtr->w1st, this->dataPtr->h1st, 1, 0,
-      Ogre::PF_FLOAT32_R, Ogre::TU_RENDERTARGET,
+      Ogre::PF_FLOAT32_RGB, Ogre::TU_RENDERTARGET,
       0, false, 0, Ogre::BLANKSTRING, false, true);
 
     Ogre::RenderTarget *rt =
@@ -772,7 +821,7 @@ void Ogre2GpuRays::Setup1stPass()
         ogreCompMgr->addWorkspace(this->scene->OgreSceneManager(),
         rt, this->dataPtr->cubeCam[i], wsDefName, false);
 
-    if (i==0){
+    if (false){
     // add laser retro material swticher to render target listener
     // so we can switch to use laser retro material when the camera is being udpated
     ignmsg << "this->dataPtr->ogreCompositorWorkspace2nd->getNodeSequence().size() "<<
@@ -789,9 +838,9 @@ void Ogre2GpuRays::Setup1stPass()
     {
       ignmsg << "for (auto c" << std::endl;
       ignmsg << "c.textures[0]->getSrcFormat(): " << c.textures[0]->getSrcFormat() << std::endl;
-      if (c.textures[0]->getSrcFormat() == Ogre::PF_D32_FLOAT)
+      if (c.textures[0]->getSrcFormat() == Ogre::PF_R8G8B8)
       {
-        ignmsg << "if textures PF_D32_FLOAT" << std::endl;
+        ignmsg << "if textures PF_R8G8B8" << std::endl;
         this->dataPtr->laserRetroMaterialSwitcher.reset(
             new Ogre2LaserRetroMaterialSwitcher(this->scene));
         c.target->addListener(this->dataPtr->laserRetroMaterialSwitcher.get());

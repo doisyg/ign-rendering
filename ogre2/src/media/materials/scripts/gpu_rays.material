@@ -31,6 +31,7 @@ fragment_program GpuRaysScan1stFS glsl
   default_params
   {
     param_named depthTexture int 0
+    param_named colorTexture int 1
   }
 }
 
@@ -43,6 +44,11 @@ material GpuRaysScan1st
       vertex_program_ref GpuRaysScan1stVS { }
       fragment_program_ref GpuRaysScan1stFS { }
       texture_unit depthTexture
+      {
+        filtering none
+        tex_address_mode clamp
+      }
+      texture_unit colorTexture
       {
         filtering none
         tex_address_mode clamp
