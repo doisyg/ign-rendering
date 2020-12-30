@@ -48,7 +48,7 @@ void main()
   float d = getDepth(inPs.uv0);
   
   // get retro
-  float retro = texture(colorTexture, inPs.uv0).x;
+  float retro = texture(colorTexture, inPs.uv0).x * 2000.0;
 
   // reconstruct 3d viewspace pos from depth
   vec3 viewSpacePos = inPs.cameraDir * d;

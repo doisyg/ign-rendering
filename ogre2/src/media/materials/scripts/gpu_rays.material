@@ -129,7 +129,7 @@ fragment_program laser_retro_fs glsl
 
   default_params
   {
-    param_named inColor float4 1 1 1 1
+    param_named inColor float4 0 0 0 1
   }
 }
 
@@ -149,7 +149,7 @@ material LaserRetroSource
 
       fragment_program_ref laser_retro_fs
       {
-        param_named_auto inColor custom 11
+        param_named_auto inColor custom 10
       }
     }
   }
